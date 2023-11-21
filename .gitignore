@@ -52,5 +52,6 @@ playground.xcworkspace
 Carthage/Build
 
 .swift-version
+.swiftpm/xcode
 
 /.idea
