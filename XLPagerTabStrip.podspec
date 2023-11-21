@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = "XLPagerTabStrip"
-  s.version          = "9.1.0"
+  s.version          = "9.1.1-beta.1"
   s.summary          = "Android PagerTabStrip for iOS and much more."
   s.homepage         = "https://github.com/xmartlabs/XLPagerTabStrip"
   s.license          = { type: 'MIT', file: 'LICENSE' }
