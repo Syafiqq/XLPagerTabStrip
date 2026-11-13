@@ -295,6 +295,7 @@ open class ButtonBarPagerTabStripViewController: PagerTabStripViewController, Pa
 
         buttonBarView.moveTo(index: indexPath.item, animated: true, swipeDirection: .none, pagerScroll: .yes)
         shouldUpdateButtonBarView = false
+        scheduleTapScrollRecovery()
 
         let oldIndexPath = IndexPath(item: currentIndex, section: 0)
         let newIndexPath = IndexPath(item: indexPath.item, section: 0)
@@ -365,6 +366,44 @@ open class ButtonBarPagerTabStripViewController: PagerTabStripViewController, Pa
 
         guard scrollView == containerView else { return }
         shouldUpdateButtonBarView = true
+        // A cancelled tap scroll can end here too, with the page short of the tapped tab.
+        if isBarOutOfSync {
+            resyncBarAndPage()
+        }
+    }
+
+    // MARK: - Cancelled tab-tap scroll recovery
+
+    /// A tab tap moves the selected bar at once and suppresses indicator updates until
+    /// `scrollViewDidEndScrollingAnimation`. If the animated page scroll is cancelled (rotation, window
+    /// resize, backgrounding, a push mid-animation) UIKit may never call it, or call it with the page short
+    /// of the tapped tab. The bar then stays under the tapped tab while the page stays on the old one, the
+    /// update flag stays off, and the navigation view stays non-interactive. This resyncs shortly after the
+    /// animation should have finished.
+    private func scheduleTapScrollRecovery() {
+        tapRecoveryToken &+= 1
+        let token = tapRecoveryToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self = self, self.tapRecoveryToken == token else { return }
+            guard !self.containerView.isDragging, !self.containerView.isDecelerating else { return }
+            if !self.shouldUpdateButtonBarView || self.isBarOutOfSync {
+                self.resyncBarAndPage()
+            }
+        }
+    }
+
+    private var isBarOutOfSync: Bool {
+        guard let cellFrame = buttonBarView.layoutAttributesForItem(at: IndexPath(item: currentIndex, section: 0))?.frame else { return false }
+        let barFrame = buttonBarView.selectedBar.frame
+        return abs(barFrame.minX - cellFrame.minX) > 0.5 || abs(barFrame.width - cellFrame.width) > 0.5
+    }
+
+    private func resyncBarAndPage() {
+        shouldUpdateButtonBarView = true
+        (navigationController?.view ?? view).isUserInteractionEnabled = true
+        containerView.setContentOffset(CGPoint(x: pageOffsetForChild(at: currentIndex), y: 0), animated: false)
+        buttonBarView.reloadData() // re-applies changeCurrentIndex* so the fonts match currentIndex
+        buttonBarView.moveTo(index: currentIndex, animated: false, swipeDirection: .none, pagerScroll: .scrollOnlyIfOutOfScreen)
     }
 
     open func configureCell(_ cell: ButtonBarViewCell, indicatorInfo: IndicatorInfo) {
@@ -414,6 +453,7 @@ open class ButtonBarPagerTabStripViewController: PagerTabStripViewController, Pa
     }
 
     private var shouldUpdateButtonBarView = true
+    private var tapRecoveryToken = 0
     private var collectionViewDidLoad = false
 
 }
